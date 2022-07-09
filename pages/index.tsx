@@ -4,11 +4,17 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Card from '../components/Card'
 import styles from '../styles/Home.module.css'
+import Link from 'next/link'
+import { ColorModeSwitcher } from "../components/ColorModeSwitcher";
+import OverviewFlow from '../OverviewFlow'
 
 
 const Home: NextPage = () => {
   return (
-    <div className={styles.container}>
+
+    <OverviewFlow />
+
+    /* <div className={styles.container}>
 
       <Head>
         <title>Create Next App</title>
@@ -17,13 +23,15 @@ const Home: NextPage = () => {
       </Head>
 
       <main className={styles.main}>
+        <ColorModeSwitcher />
 
         <Heading>Project Management Tools</Heading>
 
         <SimpleGrid columns={1} spacing={5}>
-          <Card title='Project Evaluation and Review Technique (PERT)' description='PERT is a visual project management tool used to map out and track the tasks and timelines.' />
+          <Link href="/tools/pert">
+            <Card title='Project Evaluation and Review Technique (PERT)' description='PERT is a visual project management tool used to map out and track the tasks and timelines.' />
+          </Link>
         </SimpleGrid>
-
 
       </main>
 
@@ -39,7 +47,8 @@ const Home: NextPage = () => {
           </b>
         </a>
       </footer>
-    </div>
+    </div> */
+
   )
 }
 
