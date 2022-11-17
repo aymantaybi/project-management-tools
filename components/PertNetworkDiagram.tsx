@@ -1,6 +1,4 @@
-import { TableContainer, Table, TableCaption, Thead, Tr, Th, Tbody, Td, Text, VStack, HStack } from "@chakra-ui/react";
-import React from "react";
-import PertNetworkDiagram from "../../components/PertNetworkDiagram";
+import ReactFlow, { Position, Node, Edge, useNodesState, useEdgesState } from "react-flow-renderer";
 
 interface PrecedenceCondition {
   task: string;
@@ -81,6 +79,9 @@ function getTasksSubsequents(precedenceConditions: PrecedenceCondition[]): TaskS
       }
     }
   }
+
+  console.log(tasksSubsequents);
+
   return Object.entries(tasksSubsequents).map(([key, value]) => ({ task: key, subsequents: value }));
 }
 
@@ -97,7 +98,7 @@ function getTasksLevel(tasks: Task[]) {
   return levels;
 }
 
-function getTaskStep(task: string, levels: Array<{ tasks: string[]; level: number }>) {
+function getTasksStep(task: string, levels: Array<{ tasks: string[]; level: number }>) {
   const taskLevel = levels.find((level) => level.tasks.includes(task));
   return taskLevel ? taskLevel.level + 1 : null;
 }
@@ -107,89 +108,133 @@ const tasks: Task[] = getTasksSubsequents(precedenceConditions).map((taskSubsequ
   ...precedenceConditions[index],
 }));
 
-function PertTable() {
-  return (
-    <TableContainer borderRadius="xl" borderWidth="1px" borderColor="gray.500" padding="1rem">
-      <Table variant="simple">
-        <Thead>
-          <Tr>
-            <Th>Tâche(s) immédiatement antérieure(s)</Th>
-            <Th>Pour réaliser cette tâche...</Th>
-            <Th>Tâche(s) immédiatement postérieure(s)</Th>
-          </Tr>
-        </Thead>
-        <Tbody>
-          {tasks.map((task, index) => (
-            <Tr key={index}>
-              <Td>{task.anteriors.length > 0 ? task.anteriors.join(", ") : "-"}</Td>
-              <Td>{task.task}</Td>
-              <Td>{task.subsequents.length > 0 ? task.subsequents.join(", ") : "-"}</Td>
-            </Tr>
-          ))}
-        </Tbody>
-      </Table>
-    </TableContainer>
-  );
+function getTaskSubsequents(task: string, tasks: Task[]) {
+  const currentTask = tasks.find((item) => item.task == task);
+  return currentTask?.subsequents ?? [];
 }
 
-function TasksLevelTable() {
-  const levels = getTasksLevel(tasks);
+class Network {
+  nodeStyle = {
+    width: 50,
+    height: 50,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: "50%",
+  };
+  nodes: Node[];
+  edges: Edge[] = [];
 
-  return (
-    <VStack spacing={4}>
-      <TasksDetails />
-      <TableContainer borderRadius="xl" borderWidth="1px" borderColor="gray.500" padding="1rem">
-        <Table size="sm">
-          <Thead>
-            <Tr>
-              <Th>Niveaux</Th>
-              <Th>Taches</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {levels.map((level) => (
-              <Tr key={level.level}>
-                <Td>{level.level}</Td>
-                <Td>{level.tasks}</Td>
-              </Tr>
-            ))}
-          </Tbody>
-        </Table>
-      </TableContainer>
-    </VStack>
-  );
+  defaultEdgesLength = { x: 180, y: 120 };
+
+  constructor() {
+    this.nodes = [
+      {
+        id: "1",
+        data: { label: "1" },
+        position: { x: 10, y: 250 },
+        targetPosition: Position.Left,
+        sourcePosition: Position.Right,
+        style: this.nodeStyle,
+      },
+    ];
+  }
+
+  addNode(node: Node) {
+    this.nodes.push(node);
+  }
+
+  addEdge(edge: Edge) {
+    this.edges.push(edge);
+  }
 }
 
-function TasksDetails() {
+function taskConvergence(task: string, convergentTasks: ConvergentesTasks[]) {
+  return convergentTasks.find((item) => item.tasks.includes(task));
+}
+
+export default function PertNetworkDiagram() {
   const beginningTasks = getBeginningTasks(precedenceConditions);
   const completingTasks = getCompletingTasks(precedenceConditions);
   const convergentTasks = getConvergentTasks(tasks);
   const levels = getTasksLevel(tasks);
 
+  const network = new Network();
+
+  for (const level of levels.concat({ level: levels[levels.length - 1].level + 1, tasks: [] })) {
+    if (level.level > 0) {
+      const { nodes } = network;
+      const lastNode = nodes[nodes.length - 1];
+      network.addNode({
+        id: String(level.level + 1),
+        data: { label: String(level.level + 1) },
+        position: { x: lastNode.position.x + 100, y: 250 },
+        targetPosition: Position.Left,
+        sourcePosition: Position.Right,
+        style: network.nodeStyle,
+      });
+    }
+  }
+
+  for (const currentTask of tasks.map((task) => task.task)) {
+    const currentTaskStep = getTasksStep(currentTask, levels);
+    const taskSubsequents = getTaskSubsequents(currentTask, tasks);
+    if (taskSubsequents.length) {
+      for (const taskSubsequent of taskSubsequents) {
+        const taskSubsequentStep = getTasksStep(taskSubsequent, levels);
+        network.addEdge({
+          id: `${currentTask}-${taskSubsequentStep}`,
+          source: String(currentTaskStep),
+          target: String(taskSubsequentStep),
+          type: "straight",
+          label: currentTask,
+        });
+      }
+    } else {
+      const currentTaskConvergence = taskConvergence(currentTask, convergentTasks);
+      if (currentTaskConvergence) {
+        const currentTaskConvergenceEndStep = getTasksStep(currentTaskConvergence.end, levels);
+        network.addEdge({
+          id: `${currentTask}-${currentTaskConvergenceEndStep}`,
+          source: String(currentTaskStep),
+          target: String(currentTaskConvergenceEndStep),
+          type: "straight",
+          label: currentTask,
+        });
+      } else if (completingTasks.includes(currentTask)) {
+        const finalStep = currentTaskStep ? currentTaskStep + 1 : null;
+        network.addEdge({
+          id: `${currentTask}-${finalStep}`,
+          source: String(currentTaskStep),
+          target: String(finalStep),
+          type: "straight",
+          label: currentTask,
+        });
+      }
+    }
+  }
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(network.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(network.edges);
+
   return (
-    <VStack spacing={4} width={"100%"} display="flex" justifyContent="center">
-      <Text fontSize="sm">Taches Commençantes : {beginningTasks.join(", ")}</Text>
-      <Text fontSize="sm">Taches Finissantes : {completingTasks.join(", ")}</Text>
-      <Text fontSize="sm">
-        Taches Convergentes :
-        {convergentTasks
-          .map((tasks) => `${tasks.tasks.join(", ")} (en Étape ${getTaskStep(tasks.end, levels)} )`)
-          .join(" et ")}
-      </Text>
-    </VStack>
+    <div
+      style={{
+        height: "500px",
+        width: "90%",
+        borderRadius: "10px",
+        borderWidth: "1px",
+        borderColor: "black",
+        padding: "1rem",
+      }}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        fitView={true}
+      />
+    </div>
   );
 }
-
-function Pert() {
-  return (
-    <VStack spacing={4} width={"100%"} display="flex" justifyContent="center">
-      <HStack spacing={4} width={"100%"} display="flex" justifyContent="center">
-        <PertTable />
-        <TasksLevelTable />
-      </HStack>
-      <PertNetworkDiagram />
-    </VStack>
-  );
-}
-
-export default Pert;
