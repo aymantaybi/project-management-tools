@@ -26,9 +26,10 @@ function PertTable() {
       <Table variant="simple">
         <Thead>
           <Tr>
-            <Th>Tâche(s) immédiatement antérieure(s)</Th>
-            <Th>Pour réaliser cette tâche...</Th>
-            <Th>Tâche(s) immédiatement postérieure(s)</Th>
+            <Th>Antérieure(s)</Th>
+            <Th>Tâche</Th>
+            <Th>Postérieure(s)</Th>
+            <Th>Durée</Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -37,6 +38,7 @@ function PertTable() {
               <Td>{task.anteriors.length > 0 ? task.anteriors.join(", ") : "-"}</Td>
               <Td>{task.task}</Td>
               <Td>{task.subsequents.length > 0 ? task.subsequents.join(", ") : "-"}</Td>
+              <Td>{task.duration}</Td>
             </Tr>
           ))}
         </Tbody>
