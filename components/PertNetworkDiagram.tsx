@@ -41,7 +41,7 @@ export default function PertNetworkDiagram() {
       style: nodeStyle,
     }))
   );
-  
+
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     tasks.map((task) => ({
       ...task,
