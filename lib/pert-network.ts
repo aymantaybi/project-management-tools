@@ -1,6 +1,7 @@
 export interface PrecedenceCondition {
   task: string;
   anteriors: string[];
+  duration: number;
 }
 
 interface TaskSubsequents {
@@ -22,7 +23,7 @@ interface TasksLevel {
 
 interface Network {
   steps: Array<{ id: string }>;
-  tasks: Array<{ id: string; source: string; target: string }>;
+  tasks: Array<{ id: string; source: string; target: string; duration: number }>;
 }
 
 export class Pert {
@@ -143,33 +144,46 @@ export class Pert {
     const levels = this.tasksLevels(tasks);
     network.steps = this.steps(levels);
 
-    for (const currentTask of tasks.map((task) => task.task)) {
-      const currentTaskStep = this.taskStep(currentTask, levels);
-      const taskSubsequents = this.taskSubsequents(currentTask, tasks);
+    for (const currentTask of tasks) {
+      const currentTaskStep = this.taskStep(currentTask.task, levels);
+      const taskSubsequents = this.taskSubsequents(currentTask.task, tasks);
       if (taskSubsequents.length) {
         for (const taskSubsequent of taskSubsequents) {
           const taskSubsequentStep = this.taskStep(taskSubsequent, levels);
+          const id = currentTask.task;
+          const source = String(currentTaskStep);
+          const target = String(taskSubsequentStep);
+          const duration = currentTask.duration;
+          if (
+            network.tasks.some(
+              (item) => item.id == id && item.source == source && item.target == target && item.duration == duration
+            )
+          )
+            continue;
           network.tasks.push({
-            id: currentTask,
+            id: currentTask.task,
             source: String(currentTaskStep),
             target: String(taskSubsequentStep),
+            duration: currentTask.duration,
           });
         }
       } else {
-        const currentTaskConvergence = this.taskConvergence(currentTask, convergentTasks);
+        const currentTaskConvergence = this.taskConvergence(currentTask.task, convergentTasks);
         if (currentTaskConvergence) {
           const currentTaskConvergenceEndStep = this.taskStep(currentTaskConvergence.end, levels);
           network.tasks.push({
-            id: currentTask,
+            id: currentTask.task,
             source: String(currentTaskStep),
             target: String(currentTaskConvergenceEndStep),
+            duration: currentTask.duration,
           });
-        } else if (completingTasks.includes(currentTask)) {
+        } else if (completingTasks.includes(currentTask.task)) {
           const finalStep = currentTaskStep ? currentTaskStep + 1 : null;
           network.tasks.push({
-            id: currentTask,
+            id: currentTask.task,
             source: String(currentTaskStep),
             target: String(finalStep),
+            duration: currentTask.duration,
           });
         }
       }
