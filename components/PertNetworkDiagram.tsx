@@ -17,7 +17,9 @@ function CustomNode(node: NodeProps<any>) {
           border: "1px solid black",
         }}
       >
+        <div style={{ position: "absolute", bottom: 50, color: "green" }}>{node.data.startingDateASAP}</div>
         {node.data.label}
+        <div style={{ position: "absolute", top: 50, color: "red" }}>0</div>
       </div>
       <Handle type="source" position={Position.Right} id="a" />
     </div>
@@ -40,15 +42,12 @@ const precedenceConditions: PrecedenceCondition[] = [
 export default function PertNetworkDiagram() {
   const pert = new Pert(precedenceConditions);
 
-  console.log(pert.tasks());
-  console.log(pert.network());
-
   const { tasks, steps } = pert.network();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(
     steps.map((step) => ({
-      ...step,
-      data: { label: step.id },
+      id: step.id,
+      data: { label: step.id, ...step },
       position: { x: 10 + Number(step.id) * 100, y: 250 },
       targetPosition: Position.Left,
       sourcePosition: Position.Right,
@@ -61,8 +60,11 @@ export default function PertNetworkDiagram() {
       ...task,
       type: "straight",
       label: `${task.id} (${task.duration})`,
+      animated: Boolean(task.fictional),
     }))
   );
+
+  console.log({ steps });
 
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 

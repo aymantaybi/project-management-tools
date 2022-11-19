@@ -21,9 +21,27 @@ interface TasksLevel {
   level: number;
 }
 
+interface NetworkStep {
+  id: string;
+  startingDateASAP?: number;
+  startingDateALAP?: number;
+}
+interface NetworkTask {
+  id: string;
+  source: string;
+  target: string;
+  duration: number;
+  fictional?: boolean;
+}
+
 interface Network {
-  steps: Array<{ id: string }>;
-  tasks: Array<{ id: string; source: string; target: string; duration: number }>;
+  steps: NetworkStep[];
+  tasks: NetworkTask[];
+}
+
+interface StartingDate {
+  step: number;
+  date: number;
 }
 
 export class Pert {
@@ -132,17 +150,13 @@ export class Pert {
   }
 
   network(): Network {
-    const network: Network = {
-      steps: [],
-      tasks: [],
-    };
-
     const tasks = this.tasks();
     const beginningTasks = this.beginningTasks();
     const completingTasks = this.completingTasks();
     const convergentTasks = this.convergingTasks(tasks);
     const levels = this.tasksLevels(tasks);
-    network.steps = this.steps(levels);
+    const networkSteps: NetworkStep[] = this.steps(levels);
+    const networkTasks: NetworkTask[] = [];
 
     for (const currentTask of tasks) {
       const currentTaskStep = this.taskStep(currentTask.task, levels);
@@ -155,12 +169,12 @@ export class Pert {
           const target = String(taskSubsequentStep);
           const duration = currentTask.duration;
           if (
-            network.tasks.some(
+            networkTasks.some(
               (item) => item.id == id && item.source == source && item.target == target && item.duration == duration
             )
           )
             continue;
-          network.tasks.push({
+          networkTasks.push({
             id: currentTask.task,
             source: String(currentTaskStep),
             target: String(taskSubsequentStep),
@@ -171,7 +185,7 @@ export class Pert {
         const currentTaskConvergence = this.taskConvergence(currentTask.task, convergentTasks);
         if (currentTaskConvergence) {
           const currentTaskConvergenceEndStep = this.taskStep(currentTaskConvergence.end, levels);
-          network.tasks.push({
+          networkTasks.push({
             id: currentTask.task,
             source: String(currentTaskStep),
             target: String(currentTaskConvergenceEndStep),
@@ -179,7 +193,7 @@ export class Pert {
           });
         } else if (completingTasks.includes(currentTask.task)) {
           const finalStep = currentTaskStep ? currentTaskStep + 1 : null;
-          network.tasks.push({
+          networkTasks.push({
             id: currentTask.task,
             source: String(currentTaskStep),
             target: String(finalStep),
@@ -188,6 +202,73 @@ export class Pert {
         }
       }
     }
-    return network;
+
+    const fictionalTasks = this.fictionalTasks(tasks, { steps: networkSteps, tasks: networkTasks });
+
+    const network = { steps: networkSteps, tasks: [...networkTasks, ...fictionalTasks] };
+
+    const startingDatesASAP = this.startingDatesASAP(network);
+
+    for (const startingDateASAP of startingDatesASAP) {
+      const currentStep = String(startingDateASAP.step);
+      const stepIndex = networkSteps.findIndex((step) => step.id == currentStep);
+      if (stepIndex > -1) {
+        networkSteps[stepIndex] = { id: currentStep, startingDateASAP: startingDateASAP.date };
+      }
+    }
+
+    return { steps: networkSteps, tasks: [...networkTasks, ...fictionalTasks] };
+  }
+
+  fictionalTasks(tasks: Task[], network: Network) {
+    const networkTasks = network.tasks;
+    const fictionalTasks: NetworkTask[] = [];
+    const tasksWithMultipleAnteriors = tasks.filter((task) => task.anteriors.length >= 2);
+    for (const taskWithMultipleAnteriors of tasksWithMultipleAnteriors) {
+      const { anteriors } = taskWithMultipleAnteriors;
+      for (const anterior of anteriors) {
+        const anteriorTask = tasks.find((task) => task.task == anterior);
+        const anteriorTaskInNetwork = networkTasks.find((task) => task.id == anterior);
+        const taskWithMultipleAnteriorsInNetwork = networkTasks.find(
+          (task) => task.id == taskWithMultipleAnteriors.task
+        );
+        if (
+          anteriorTask &&
+          anteriorTaskInNetwork &&
+          taskWithMultipleAnteriorsInNetwork &&
+          anteriorTask.subsequents.length > 0 &&
+          !anteriorTask.subsequents.includes(taskWithMultipleAnteriors.task)
+        ) {
+          fictionalTasks.push({
+            id: `${anterior}"`,
+            source: anteriorTaskInNetwork.target,
+            target: taskWithMultipleAnteriorsInNetwork.source,
+            duration: 0,
+            fictional: true,
+          });
+        }
+      }
+    }
+    return fictionalTasks;
+  }
+
+  startingDatesASAP(network: Network) {
+    const startingDates: StartingDate[] = [{ step: 1, date: 0 }];
+    const networkTasks = network.tasks;
+    const steps = Array.from(new Set(networkTasks.map((item) => Number(item.target)).sort()));
+    for (const step of steps) {
+      const previousStepsTasks = networkTasks.filter((task) => task.target == String(step));
+      const cumulativeDurations = [];
+      for (const task of previousStepsTasks) {
+        const taskStep = task.source;
+        const taskStartingDate = startingDates.find((startingDate) => startingDate.step == Number(taskStep));
+        const taskStartingDateValue = taskStartingDate?.date ? taskStartingDate.date : 0;
+        const cumulativeDuration = taskStartingDateValue + task.duration;
+        cumulativeDurations.push(cumulativeDuration);
+        console.log({ taskStartingDate, cumulativeDuration, step, task });
+      }
+      startingDates.push({ step, date: Math.max(...cumulativeDurations) });
+    }
+    return startingDates;
   }
 }
