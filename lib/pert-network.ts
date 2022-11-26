@@ -4,29 +4,29 @@ export interface PrecedenceCondition {
   duration: number;
 }
 
-interface TaskSubsequents {
+export interface TaskSubsequents {
   task: string;
   subsequents: string[];
 }
 
-interface Task extends PrecedenceCondition, TaskSubsequents {}
+export interface Task extends PrecedenceCondition, TaskSubsequents {}
 
-interface ConvergentesTasks {
+export interface ConvergentesTasks {
   tasks: string[];
   end: string;
 }
 
-interface TasksLevel {
+export interface TasksLevel {
   tasks: string[];
   level: number;
 }
 
-interface NetworkStep {
+export interface NetworkStep {
   id: string;
   startingDateASAP?: number;
   startingDateALAP?: number;
 }
-interface NetworkTask {
+export interface NetworkTask {
   id: string;
   source: string;
   target: string;
@@ -34,12 +34,12 @@ interface NetworkTask {
   fictional?: boolean;
 }
 
-interface Network {
+export interface Network {
   steps: NetworkStep[];
   tasks: NetworkTask[];
 }
 
-interface StartingDate {
+export interface StartingDate {
   step: number;
   date: number;
 }
@@ -49,6 +49,29 @@ export class Pert {
 
   constructor(precedenceConditions: PrecedenceCondition[]) {
     this.precedenceConditions = precedenceConditions;
+  }
+
+  taskSubsequents(task: string) {
+    const subsequents: string[] = [];
+    for (const precedenceCondition of this.precedenceConditions) {
+      if (precedenceCondition.anteriors[precedenceCondition.anteriors.length - 1] == task) {
+        subsequents.push(precedenceCondition.task);
+      }
+    }
+    return subsequents;
+  }
+
+  tasksLevels() {
+    const levels: Array<{ tasks: string[]; level: number }> = [];
+    levels.push({ tasks: this.beginningTasks(), level: 0 });
+    for (let i = 0; i < levels.length; i++) {
+      const currentLevelTasks = levels[i].tasks;
+      for (const currentLevelTask of currentLevelTasks) {
+        const currentLevelTaskSubsequents = this.taskSubsequents(currentLevelTask);
+        currentLevelTaskSubsequents.length > 0 && levels.push({ tasks: currentLevelTaskSubsequents, level: 0 });
+      }
+    }
+    return levels.map((level, index) => ({ tasks: level.tasks, level: index }));
   }
 
   beginningTasks() {
@@ -105,27 +128,9 @@ export class Pert {
     return Object.entries(tasksSubsequents).map(([key, value]) => ({ task: key, subsequents: value }));
   }
 
-  tasksLevels(tasks: Task[]) {
-    let lastLevelNumber = 0;
-    const levels: Array<{ tasks: string[]; level: number }> = [];
-    levels.push({ tasks: this.beginningTasks(), level: lastLevelNumber });
-    for (const task of tasks) {
-      if (task.subsequents.length) {
-        lastLevelNumber = lastLevelNumber + 1;
-        levels.push({ tasks: task.subsequents, level: lastLevelNumber });
-      }
-    }
-    return levels;
-  }
-
   taskStep(task: string, levels: TasksLevel[]) {
     const taskLevel = levels.find((level) => level.tasks.includes(task));
     return taskLevel ? taskLevel.level + 1 : null;
-  }
-
-  taskSubsequents(task: string, tasks: Task[]) {
-    const currentTask = tasks.find((item) => item.task == task);
-    return currentTask?.subsequents ?? [];
   }
 
   taskConvergence(task: string, convergentTasks: ConvergentesTasks[]) {
@@ -154,13 +159,13 @@ export class Pert {
     const beginningTasks = this.beginningTasks();
     const completingTasks = this.completingTasks();
     const convergentTasks = this.convergingTasks(tasks);
-    const levels = this.tasksLevels(tasks);
+    const levels = this.tasksLevels();
     const networkSteps: NetworkStep[] = this.steps(levels);
     const networkTasks: NetworkTask[] = [];
 
     for (const currentTask of tasks) {
       const currentTaskStep = this.taskStep(currentTask.task, levels);
-      const taskSubsequents = this.taskSubsequents(currentTask.task, tasks);
+      const taskSubsequents = this.taskSubsequents(currentTask.task);
       if (taskSubsequents.length) {
         for (const taskSubsequent of taskSubsequents) {
           const taskSubsequentStep = this.taskStep(taskSubsequent, levels);

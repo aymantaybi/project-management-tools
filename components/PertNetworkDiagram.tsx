@@ -1,6 +1,6 @@
 import ReactFlow, { Handle, Position, Node, Edge, useNodesState, useEdgesState, NodeProps } from "react-flow-renderer";
-import { Pert, PrecedenceCondition } from "../lib/pert-network";
-import { useCallback, useMemo } from "react";
+import { Pert, Network } from "../lib/pert-network";
+import { useMemo } from "react";
 
 function CustomNode(node: NodeProps<any>) {
   return (
@@ -26,23 +26,13 @@ function CustomNode(node: NodeProps<any>) {
   );
 }
 
-const precedenceConditions: PrecedenceCondition[] = [
-  { task: "A", anteriors: [], duration: 4 },
-  { task: "B", anteriors: [], duration: 2 },
-  { task: "C", anteriors: ["A"], duration: 1 },
-  { task: "E", anteriors: ["A"], duration: 2 },
-  { task: "D", anteriors: ["A", "B"], duration: 1 },
-  { task: "F", anteriors: ["C"], duration: 2 },
-  { task: "H", anteriors: ["E"], duration: 10 },
-  { task: "G", anteriors: ["D", "F"], duration: 2 },
-  { task: "I", anteriors: ["G"], duration: 4 },
-  { task: "J", anteriors: ["H", "I"], duration: 1 },
-];
+interface PertNetworkDiagramProps {
+  network: Network;
+}
 
-export default function PertNetworkDiagram() {
-  const pert = new Pert(precedenceConditions);
-
-  const { tasks, steps } = pert.network();
+export default function PertNetworkDiagram(props: PertNetworkDiagramProps) {
+  const { network } = props;
+  const { tasks, steps } = network;
 
   const [nodes, setNodes, onNodesChange] = useNodesState(
     steps.map((step) => ({
