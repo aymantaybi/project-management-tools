@@ -110,6 +110,7 @@ export class Pert {
         }
       }
     }
+
     return convergingTasks;
   }
 
@@ -148,59 +149,120 @@ export class Pert {
     }));
   }
 
+  taskDuration(task: string) {
+    const taskPrecedenceCondition = this.precedenceConditions.find((condition) => condition.task == task);
+    return taskPrecedenceCondition?.duration || 0;
+  }
+
+  taskAnteriors(task: string) {
+    const anteriors: string[] = [];
+    for (const precedenceCondition of this.precedenceConditions) {
+      if (precedenceCondition.task == task) {
+        anteriors.push(...precedenceCondition.anteriors);
+      }
+    }
+    return anteriors;
+  }
+
   network(): Network {
+    const networkTasks: NetworkTask[] = [];
+    const tasksLevels = this.tasksLevels();
     const tasks = this.tasks();
     const beginningTasks = this.beginningTasks();
     const completingTasks = this.completingTasks();
     const convergingTasks = this.convergingTasks(tasks);
-    const levels = this.tasksLevels();
-    const networkSteps: NetworkStep[] = this.steps(levels);
-    const networkTasks: NetworkTask[] = [];
 
-    for (const currentTask of tasks) {
-      const currentTaskStep = this.taskStep(currentTask.task, levels);
-      const taskSubsequents = this.taskSubsequents(currentTask.task);
-      if (taskSubsequents.length) {
-        for (const taskSubsequent of taskSubsequents) {
-          const taskSubsequentStep = this.taskStep(taskSubsequent, levels);
-          const id = currentTask.task;
-          const source = String(currentTaskStep);
-          const target = String(taskSubsequentStep);
-          const duration = currentTask.duration;
-          if (
-            networkTasks.some(
-              (item) => item.id == id && item.source == source && item.target == target && item.duration == duration
-            )
-          )
-            continue;
-          networkTasks.push({
-            id: currentTask.task,
-            source: String(currentTaskStep),
-            target: String(taskSubsequentStep),
-            duration: currentTask.duration,
-          });
-        }
+    console.log({ convergingTasks });
+
+    const latestTasksTarget = (): number => Math.max(...networkTasks.map((item) => Number(item.target)), 0);
+
+    const taskTargetStep = (task: string) => {
+      const networkTask = networkTasks.find((item) => item.id == task);
+      return networkTask?.target || undefined;
+    };
+
+    const networkTaskSource = (task: string) => {
+      const taskAnteriors = this.taskAnteriors(task);
+      const taskSource = taskAnteriors.map((anterior) => taskTargetStep(anterior)).find((item) => item != undefined);
+      if (!taskSource) throw new Error(`Unable to find task source of task : ${task}, please check you input !`);
+      return taskSource;
+    };
+
+    const getNetworkTaskSource = (task: string) => {
+      if (beginningTasks.includes(task)) {
+        return String(1);
       } else {
-        const currentTaskConvergence = this.taskConvergence(currentTask.task, convergingTasks);
-        if (currentTaskConvergence) {
-          const currentTaskConvergenceEndStep = this.taskStep(currentTaskConvergence.end, levels);
-          networkTasks.push({
-            id: currentTask.task,
-            source: String(currentTaskStep),
-            target: String(currentTaskConvergenceEndStep),
-            duration: currentTask.duration,
-          });
-        } else if (completingTasks.includes(currentTask.task)) {
-          const finalStep = currentTaskStep ? currentTaskStep + 1 : null;
-          networkTasks.push({
-            id: currentTask.task,
-            source: String(currentTaskStep),
-            target: String(finalStep),
-            duration: currentTask.duration,
-          });
-        }
+        return String(networkTaskSource(task));
+      }
+    };
+
+    const getNetworkTaskTarget = (task: string) => {
+      const taskConvergence = convergingTasks.find((item) => item.tasks.includes(task));
+      if (beginningTasks.includes(task)) {
+        return String(latestTasksTarget() == 0 ? 2 : latestTasksTarget() + 1);
+      } else if (taskConvergence) {
+        const taskConvergingTasks = taskConvergence.tasks.filter((item) => item != task);
+        const taskTarget = taskConvergingTasks
+          .map((anterior) => taskTargetStep(anterior))
+          .find((item) => item != undefined);
+        if (!taskTarget) return String(latestTasksTarget() + 1);
+        return taskTarget;
+      } else {
+        return String(latestTasksTarget() + 1);
+      }
+    };
+
+    const tasksWithoutSubsequents = tasks
+      .filter((item) => !completingTasks.includes(item.task) && item.subsequents.length == 0)
+      .map((item) => item.task);
+
+    for (const tasksLevel of tasksLevels) {
+      for (const levelTask of tasksLevel.tasks) {
+        if (completingTasks.includes(levelTask) || tasksWithoutSubsequents.includes(levelTask)) continue;
+        const id = levelTask;
+        const source = getNetworkTaskSource(levelTask);
+        const target = getNetworkTaskTarget(levelTask);
+        const duration = this.taskDuration(levelTask);
+        networkTasks.push({
+          id,
+          source,
+          target,
+          duration,
+        });
       }
     }
+
+    for (const taskWithoutSubsequents of tasksWithoutSubsequents) {
+      const id = taskWithoutSubsequents;
+      const source = getNetworkTaskSource(taskWithoutSubsequents);
+      const target = getNetworkTaskTarget(taskWithoutSubsequents);
+      const duration = this.taskDuration(taskWithoutSubsequents);
+      networkTasks.push({
+        id,
+        source,
+        target,
+        duration,
+      });
+    }
+
+    const networkLastTasksTarget = String(latestTasksTarget() + 1);
+
+    for (const completingTask of completingTasks) {
+      const id = completingTask;
+      const source = getNetworkTaskSource(completingTask);
+      const target = networkLastTasksTarget;
+      const duration = this.taskDuration(completingTask);
+      networkTasks.push({
+        id,
+        source,
+        target,
+        duration,
+      });
+    }
+
+    const networkSteps: NetworkStep[] = Array(latestTasksTarget())
+      .fill(0)
+      .map((item, index) => ({ id: String(index + 1) }));
 
     const fictionalTasks = this.fictionalTasks(tasks, { steps: networkSteps, tasks: networkTasks });
 
