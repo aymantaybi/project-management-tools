@@ -1,6 +1,6 @@
-import ReactFlow, { Handle, Position, Node, Edge, useNodesState, useEdgesState, NodeProps } from "react-flow-renderer";
+import ReactFlow, { Handle, Position, Node, Edge, useNodesState, useEdgesState, NodeProps, Controls } from "react-flow-renderer";
 import { Pert, Network } from "../lib/pert-network";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 function CustomNode(node: NodeProps<any>) {
   return (
@@ -34,6 +34,28 @@ export default function PertNetworkDiagram(props: PertNetworkDiagramProps) {
   const { network } = props;
   const { tasks, steps } = network;
 
+  useEffect(() => {
+    setNodes(
+      steps.map((step) => ({
+        id: step.id,
+        data: { label: step.id, ...step },
+        position: { x: 10 + Number(step.id) * 100, y: 250 },
+        targetPosition: Position.Left,
+        sourcePosition: Position.Right,
+        type: "custom",
+      }))
+    );
+
+    setEdges(
+      tasks.map((task) => ({
+        ...task,
+        type: "straight",
+        label: `${task.id} (${task.duration})`,
+        animated: Boolean(task.fictional),
+      }))
+    );
+  }, [network]);
+
   const [nodes, setNodes, onNodesChange] = useNodesState(
     steps.map((step) => ({
       id: step.id,
@@ -66,7 +88,7 @@ export default function PertNetworkDiagram(props: PertNetworkDiagramProps) {
         borderRadius: "10px",
         borderWidth: "1px",
         borderColor: "black",
-        padding: "1rem",
+        padding: "2rem",
       }}
     >
       <ReactFlow
@@ -74,9 +96,12 @@ export default function PertNetworkDiagram(props: PertNetworkDiagramProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        fitView={true}
+        fitView
         nodeTypes={nodeTypes}
-      />
+        attributionPosition="bottom-right"
+      >
+        <Controls />
+      </ReactFlow>
     </div>
   );
 }

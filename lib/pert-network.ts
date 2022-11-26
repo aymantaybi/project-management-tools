@@ -51,6 +51,16 @@ export class Pert {
     this.precedenceConditions = precedenceConditions;
   }
 
+  process() {
+    const beginningTasks = this.beginningTasks();
+    const completingTasks = this.completingTasks();
+    const tasks = this.tasks();
+    const convergingTasks = this.convergingTasks(tasks);
+    const tasksLevels = this.tasksLevels();
+    const network = this.network();
+    return { beginningTasks, completingTasks, convergingTasks, tasksLevels, network, tasks };
+  }
+
   taskSubsequents(task: string) {
     const subsequents: string[] = [];
     for (const precedenceCondition of this.precedenceConditions) {
@@ -76,13 +86,14 @@ export class Pert {
 
   beginningTasks() {
     return this.precedenceConditions
-      .filter((condition) => condition.anteriors.length == 0)
+      .filter((condition) => condition.anteriors?.length == 0)
       .map((condition) => condition.task);
   }
 
   completingTasks() {
     const tasks: string[] = [];
     const anteriors: string[] = [];
+    console.log({ precedenceCondition: this.precedenceConditions });
     for (const precedenceCondition of this.precedenceConditions) {
       tasks.push(precedenceCondition.task);
       anteriors.push(...precedenceCondition.anteriors);
@@ -92,6 +103,24 @@ export class Pert {
 
   convergingTasks(tasks: Task[]) {
     const convergingTasks: ConvergingTasks[] = [];
+
+    const groupeConvergingTasksByEnd = (convergingTasks: ConvergingTasks[]) => {
+      const groupedConvergingTasks: ConvergingTasks[] = [];
+      const allTasksEnds = Array.from(new Set(convergingTasks.map((item) => item.end)));
+      for (const tasksEnd of allTasksEnds) {
+        const tasksWithSameEnd = Array.from(
+          new Set(
+            convergingTasks
+              .filter((item) => item.end == tasksEnd)
+              .map((item) => item.tasks)
+              .flat()
+          )
+        );
+        groupedConvergingTasks.push({ tasks: tasksWithSameEnd, end: tasksEnd });
+      }
+      return groupedConvergingTasks;
+    };
+
     for (const task of tasks) {
       if (task.subsequents.length == 0) {
         const currentTaskWithNoSubsequents = task.task;
@@ -110,8 +139,8 @@ export class Pert {
         }
       }
     }
-
-    return convergingTasks;
+    const groupedConvergingTasks = groupeConvergingTasksByEnd(convergingTasks);
+    return groupedConvergingTasks;
   }
 
   tasksSubsequents(): TaskSubsequents[] {
@@ -183,8 +212,8 @@ export class Pert {
 
     const networkTaskSource = (task: string) => {
       const taskAnteriors = this.taskAnteriors(task);
-      const taskSource = taskAnteriors.map((anterior) => taskTargetStep(anterior)).find((item) => item != undefined);
-      if (!taskSource) throw new Error(`Unable to find task source of task : ${task}, please check you input !`);
+      const taskSource = taskAnteriors.reverse().map((anterior) => taskTargetStep(anterior)).find((item) => item != undefined);
+      if (!taskSource) throw new Error(`Unable to find task source of task : ${task}, Please fix you inputs !`);
       return taskSource;
     };
 
@@ -203,7 +232,7 @@ export class Pert {
       } else if (taskConvergence) {
         const taskConvergingTasks = taskConvergence.tasks.filter((item) => item != task);
         const taskTarget = taskConvergingTasks
-          .map((anterior) => taskTargetStep(anterior))
+          .map((item) => taskTargetStep(item))
           .find((item) => item != undefined);
         if (!taskTarget) return String(latestTasksTarget() + 1);
         return taskTarget;
