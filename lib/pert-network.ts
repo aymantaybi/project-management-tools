@@ -11,7 +11,7 @@ export interface TaskSubsequents {
 
 export interface Task extends PrecedenceCondition, TaskSubsequents {}
 
-export interface ConvergentesTasks {
+export interface ConvergingTasks {
   tasks: string[];
   end: string;
 }
@@ -91,7 +91,7 @@ export class Pert {
   }
 
   convergingTasks(tasks: Task[]) {
-    const convergentTasks: ConvergentesTasks[] = [];
+    const convergingTasks: ConvergingTasks[] = [];
     for (const task of tasks) {
       if (task.subsequents.length == 0) {
         const currentTaskWithNoSubsequents = task.task;
@@ -102,7 +102,7 @@ export class Pert {
           const { anteriors } = taskWithCurrentTaskAsAnterior;
           for (const anterior of anteriors) {
             if (anterior == currentTaskWithNoSubsequents) continue;
-            convergentTasks.push({
+            convergingTasks.push({
               tasks: [currentTaskWithNoSubsequents, anterior],
               end: taskWithCurrentTaskAsAnterior.task,
             });
@@ -110,15 +110,15 @@ export class Pert {
         }
       }
     }
-    return convergentTasks;
+    return convergingTasks;
   }
 
-  tasksSubsequents(precedenceConditions: PrecedenceCondition[]): TaskSubsequents[] {
-    const tasks = precedenceConditions.map((precedenceCondition) => precedenceCondition.task);
+  tasksSubsequents(): TaskSubsequents[] {
+    const tasks = this.precedenceConditions.map((precedenceCondition) => precedenceCondition.task);
     const tasksSubsequents: { [task: string]: string[] } = {};
     for (const task of tasks) {
       tasksSubsequents[task] = [];
-      for (const precedenceCondition of precedenceConditions) {
+      for (const precedenceCondition of this.precedenceConditions) {
         const anteriorsLength = precedenceCondition.anteriors.length;
         if (precedenceCondition.anteriors[anteriorsLength - 1] == task) {
           tasksSubsequents[task].push(precedenceCondition.task);
@@ -133,8 +133,8 @@ export class Pert {
     return taskLevel ? taskLevel.level + 1 : null;
   }
 
-  taskConvergence(task: string, convergentTasks: ConvergentesTasks[]) {
-    return convergentTasks.find((item) => item.tasks.includes(task));
+  taskConvergence(task: string, convergingTasks: ConvergingTasks[]) {
+    return convergingTasks.find((item) => item.tasks.includes(task));
   }
 
   steps(levels: TasksLevel[]) {
@@ -148,7 +148,7 @@ export class Pert {
   }
 
   tasks(): Task[] {
-    return this.tasksSubsequents(this.precedenceConditions).map((taskSubsequents, index) => ({
+    return this.tasksSubsequents().map((taskSubsequents, index) => ({
       ...taskSubsequents,
       ...this.precedenceConditions[index],
     }));
@@ -158,7 +158,7 @@ export class Pert {
     const tasks = this.tasks();
     const beginningTasks = this.beginningTasks();
     const completingTasks = this.completingTasks();
-    const convergentTasks = this.convergingTasks(tasks);
+    const convergingTasks = this.convergingTasks(tasks);
     const levels = this.tasksLevels();
     const networkSteps: NetworkStep[] = this.steps(levels);
     const networkTasks: NetworkTask[] = [];
@@ -187,7 +187,7 @@ export class Pert {
           });
         }
       } else {
-        const currentTaskConvergence = this.taskConvergence(currentTask.task, convergentTasks);
+        const currentTaskConvergence = this.taskConvergence(currentTask.task, convergingTasks);
         if (currentTaskConvergence) {
           const currentTaskConvergenceEndStep = this.taskStep(currentTaskConvergence.end, levels);
           networkTasks.push({
@@ -270,7 +270,6 @@ export class Pert {
         const taskStartingDateValue = taskStartingDate?.date ? taskStartingDate.date : 0;
         const cumulativeDuration = taskStartingDateValue + task.duration;
         cumulativeDurations.push(cumulativeDuration);
-        console.log({ taskStartingDate, cumulativeDuration, step, task });
       }
       startingDates.push({ step, date: Math.max(...cumulativeDurations) });
     }
