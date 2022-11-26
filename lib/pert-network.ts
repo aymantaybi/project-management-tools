@@ -115,17 +115,11 @@ export class Pert {
 
   tasksSubsequents(): TaskSubsequents[] {
     const tasks = this.precedenceConditions.map((precedenceCondition) => precedenceCondition.task);
-    const tasksSubsequents: { [task: string]: string[] } = {};
+    const tasksSubsequents: TaskSubsequents[] = [];
     for (const task of tasks) {
-      tasksSubsequents[task] = [];
-      for (const precedenceCondition of this.precedenceConditions) {
-        const anteriorsLength = precedenceCondition.anteriors.length;
-        if (precedenceCondition.anteriors[anteriorsLength - 1] == task) {
-          tasksSubsequents[task].push(precedenceCondition.task);
-        }
-      }
+      tasksSubsequents.push({ task, subsequents: this.taskSubsequents(task) });
     }
-    return Object.entries(tasksSubsequents).map(([key, value]) => ({ task: key, subsequents: value }));
+    return tasksSubsequents;
   }
 
   taskStep(task: string, levels: TasksLevel[]) {
